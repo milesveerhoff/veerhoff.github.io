@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WUVT Studio Clock</title>
+    <style>
+        :root {
+            --wuvt-bg: #0a0a0a;
+            --wuvt-card: rgba(24, 24, 24, 0.8);
+            --wuvt-text: #e7edff;
+            --wuvt-dim: #707991;
+            --wuvt-border: #2c2c2c;
+            --wuvt-green: rgba(27, 94, 32, 0.6);
+            --wuvt-yellow: rgba(249, 168, 37, 0.5);
+            --wuvt-red: rgba(183, 28, 28, 0.6);
+            --speed: 1.4s; 
+        }
+
+        body {
+            background-color: var(--wuvt-bg);
+            color: var(--wuvt-text);
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            transition: background-color var(--speed) ease;
+        }
+
+        #wrapper {
+            width: 90%;
+            max-width: 900px;
+            text-align: center;
+        }
+
+        #current-time {
+            font-size: 10rem;
+            font-weight: 700;
+            letter-spacing: -3px;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
+
+        #ampm {
+            font-size: 2rem;
+            color: var(--wuvt-dim);
+            margin-left: 10px;
+            text-transform: lowercase;
+        }
+
+        #ui-container {
+            position: relative;
+            background: var(--wuvt-card);
+            border: 1px solid var(--wuvt-border);
+            border-radius: 12px;
+            margin: 0 auto;
+            width: 85%;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px);
+            height: 0;
+            overflow: hidden;
+            transition: 
+                opacity var(--speed) ease, 
+                transform var(--speed) cubic-bezier(0.4, 0, 0.2, 1),
+                background-color var(--speed) ease,
+                height var(--speed) ease,
+                padding var(--speed) ease;
+            backdrop-filter: blur(10px);
+        }
+
+        body.alert-active #ui-container {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            height: auto;
+            padding: 2rem 1rem;
+            margin: 2.5rem 0;
+        }
+
+        #hide-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--wuvt-dim);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        body.manual-hide #ui-container {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        body.green-phase #ui-container { background-color: var(--wuvt-green); border-color: rgba(46, 125, 50, 0.4); }
+        body.yellow-phase #ui-container { background-color: var(--wuvt-yellow); border-color: rgba(253, 216, 53, 0.4); color: white; }
+        body.red-phase #ui-container { background-color: var(--wuvt-red); border-color: rgba(211, 47, 47, 0.4); }
+
+        #message { font-size: 2.8rem; font-weight: 600; margin-bottom: 0.25rem; }
+        #status-text { font-size: 1.2rem; opacity: 0.8; font-weight: 400; }
+        #countdown { font-size: 3rem; font-weight: 700; margin-top: 1rem; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+
+        .timeline {
+            display: flex;
+            justify-content: center;
+            gap: 80px;
+            padding-top: 2rem;
+            border-top: 1px solid var(--wuvt-border);
+        }
+
+        .timeline-label { display: block; color: var(--wuvt-dim); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+        .timeline-value { font-size: 1.1rem; font-weight: 500; }
+    </style>
+</head>
+<body id="monitor-body">
+
+<div id="wrapper">
+    <div id="clock-wrap">
+        <span id="current-time">12:00:00</span>
+        <span id="ampm">am</span>
+    </div>
+
+    <div id="ui-container">
+        <button id="hide-btn" onclick="dismissTask()">✕</button>
+        <div id="message">task</div>
+        <div id="status-text">--</div>
+        <div id="countdown">00:00</div>
+    </div>
+
+    <div class="timeline">
+        <div class="timeline-item">
+            <span class="timeline-label">Previous</span>
+            <div id="last-event" class="timeline-value">--</div>
+        </div>
+        <div class="timeline-item">
+            <span class="timeline-label">Upcoming</span>
+            <div id="next-event" class="timeline-value">--</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const targets = [
+        { mark: 0, text: "Read Station ID" },
+        { mark: 15, text: "Read PSA" },
+        { mark: 30, text: "Read Weather" },
+        { mark: 45, text: "Read PSA" }
+    ];
+
+    let currentActiveTargetMark = null;
+    let isManuallyDismissed = false;
+
+    function dismissTask() {
+        document.getElementById('monitor-body').classList.add('manual-hide');
+        isManuallyDismissed = true;
+    }
+
+    // Centrally managed 12-hour time formatter
+    function formatTime(date) {
+        let h = date.getHours();
+        let m = String(date.getMinutes()).padStart(2, '0');
+        let period = h >= 12 ? 'pm' : 'am';
+        let h12 = h % 12 || 12; // 0 becomes 12 (Midnight), 12 remains 12 (Noon)
+        return `${String(h12).padStart(2, '0')}:${m} ${period}`;
+    }
+
+    function update() {
+        const now = new Date();
+        const m = now.getMinutes();
+        const s = now.getSeconds();
+
+        // 1. Update Main Clock
+        const h12 = now.getHours() % 12 || 12;
+        const ampm = now.getHours() >= 12 ? 'pm' : 'am';
+        document.getElementById('current-time').textContent = 
+            `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        document.getElementById('ampm').textContent = ampm;
+
+        // 2. Determine Active Window
+        let active = null;
+        let diff = 0;
+        for (let t of targets) {
+            let d = m - t.mark;
+            if (t.mark === 0 && m >= 54) d = m - 60;
+            if (t.mark === 0 && m <= 6) d = m;
+            if (Math.abs(d) <= 6) { active = t; diff = d; break; }
+        }
+
+        const body = document.getElementById('monitor-body');
+        
+        // 3. Reset manual-hide and track target change
+        if (active) {
+            if (currentActiveTargetMark !== active.mark) {
+                isManuallyDismissed = false;
+                body.classList.remove('manual-hide');
+                currentActiveTargetMark = active.mark;
+            }
+        } else {
+            body.classList.remove('alert-active', 'manual-hide', 'green-phase', 'yellow-phase', 'red-phase');
+            isManuallyDismissed = false;
+            currentActiveTargetMark = null;
+        }
+
+        // 4. Timeline Calculation (Safe for Noon/Midnight)
+        // Previous Event
+        let lastIdx = targets.findIndex(t => t.mark > m) - 1;
+        if (lastIdx === -2) lastIdx = targets.length - 1; 
+        
+        let prevDate = new Date(now.getTime());
+        prevDate.setMinutes(targets[lastIdx].mark);
+        prevDate.setSeconds(0);
+        if (targets[lastIdx].mark > m) {
+            prevDate.setHours(now.getHours() - 1);
+        }
+
+        // Next Event
+        let nextIdx = targets.findIndex(t => t.mark > m);
+        if (nextIdx === -1) nextIdx = 0;
+        
+        let nextDate = new Date(now.getTime());
+        nextDate.setMinutes(targets[nextIdx].mark);
+        nextDate.setSeconds(0);
+        if (targets[nextIdx].mark <= m) {
+            nextDate.setHours(now.getHours() + 1);
+        }
+
+        document.getElementById('last-event').textContent = `${targets[lastIdx].text} (${formatTime(prevDate)})`;
+        document.getElementById('next-event').textContent = `${targets[nextIdx].text} (${formatTime(nextDate)})`;
+
+        // 5. Render Action Card
+        if (active && !isManuallyDismissed) {
+            body.classList.add('alert-active');
+            document.getElementById('message').textContent = active.text;
+
+            if (diff < 0) {
+                const secsLeft = (Math.abs(diff) * 60) - s;
+                body.classList.remove('red-phase');
+                body.classList.add(secsLeft < 60 ? 'yellow-phase' : 'green-phase');
+                
+                let targetDate = new Date(now.getTime());
+                targetDate.setMinutes(active.mark);
+                targetDate.setSeconds(0);
+                if (active.mark === 0 && m >= 54) {
+                    targetDate.setHours(now.getHours() + 1);
+                }
+                
+                document.getElementById('status-text').textContent = `Target: ${formatTime(targetDate)}`;
+                document.getElementById('countdown').textContent = `${Math.floor(secsLeft/60)}:${String(secsLeft%60).padStart(2,'0')} until start`;
+            } else {
+                body.classList.remove('green-phase', 'yellow-phase');
+                body.classList.add('red-phase');
+                
+                let graceDate = new Date(now.getTime());
+                graceDate.setMinutes(active.mark + 6);
+                graceDate.setSeconds(0);
+                
+                document.getElementById('status-text').textContent = `Within grace period until ${formatTime(graceDate)}`;
+                const secsLeft = (6 - diff) * 60 - s;
+                document.getElementById('countdown').textContent = `${Math.floor(secsLeft/60)}:${String(secsLeft%60).padStart(2,'0')} left`;
+            }
+        }
+    }
+
+    setInterval(update, 1000);
+    update();
+</script>
+</body>
+</html>
