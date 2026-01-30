@@ -24,10 +24,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh; /* Changed from height to min-height for safer mobile spacing */
+            min-height: 100vh;
             margin: 0;
             transition: background-color var(--speed) ease;
-            overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+            overflow-x: hidden;
+            flex-direction: column;
         }
 
         #wrapper {
@@ -47,7 +48,6 @@
         }
 
         #current-time {
-            /* Fluid typography: Minimum 4rem, Preferred 18vw, Maximum 10rem */
             font-size: clamp(4rem, 18vw, 10rem);
             font-weight: 700;
             letter-spacing: -3px;
@@ -56,7 +56,6 @@
         }
 
         #ampm {
-            /* Fluid typography for AM/PM */
             font-size: clamp(1rem, 4vw, 2rem);
             color: var(--wuvt-dim);
             margin-left: 10px;
@@ -102,7 +101,7 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             color: var(--wuvt-dim);
-            width: 30px; /* Slightly larger for touch */
+            width: 30px;
             height: 30px;
             border-radius: 50%;
             cursor: pointer;
@@ -152,7 +151,7 @@
         .timeline {
             display: flex;
             justify-content: center;
-            gap: 80px; /* Default desktop gap */
+            gap: 80px;
             padding-top: 2rem;
             border-top: 1px solid var(--wuvt-border);
             width: 100%;
@@ -160,7 +159,7 @@
 
         .timeline-item {
             flex: 1;
-            min-width: 0; /* Allows text truncation if needed */
+            min-width: 0;
         }
 
         .timeline-label { 
@@ -179,41 +178,88 @@
             white-space: nowrap; 
         }
 
+        /* --- DEBUG PANEL & TOGGLE --- */
+        #settings-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--wuvt-dim);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            z-index: 1000;
+            transition: all 0.2s ease;
+        }
+
+        #settings-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            transform: rotate(45deg);
+        }
+
+        #debug-controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #1a1a1a;
+            border-top: 1px solid #333;
+            padding: 20px;
+            box-sizing: border-box;
+            transform: translateY(100%); /* Hidden by default */
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 999;
+            text-align: center;
+            font-family: monospace;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #debug-controls.visible {
+            transform: translateY(0);
+        }
+
+        #debug-controls label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--wuvt-text);
+        }
+
+        #debug-header {
+            width: 100%;
+            color: var(--wuvt-yellow);
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
+
         /* --- MOBILE OPTIMIZATIONS --- */
         @media (max-width: 768px) {
             #wrapper { width: 95%; }
+            #clock-wrap { margin-bottom: 0.5rem; }
+            .timeline { gap: 20px; padding-top: 1.5rem; }
+            .timeline-value { font-size: 0.95rem; }
+            #ui-container { width: 95%; }
+            body.alert-active #ui-container { padding: 1.5rem 0.5rem; margin: 1.5rem auto; }
+            #hide-btn { width: 44px; height: 44px; font-size: 18px; top: 5px; right: 5px; }
             
-            #clock-wrap {
-                margin-bottom: 0.5rem;
-            }
-
-            /* Stack Timeline closer together */
-            .timeline {
-                gap: 20px;
-                padding-top: 1.5rem;
-            }
-
-            .timeline-value {
-                font-size: 0.95rem;
-            }
-
-            /* Make alert box fill more width on mobile */
-            #ui-container {
-                width: 95%;
-            }
-
-            body.alert-active #ui-container {
-                padding: 1.5rem 0.5rem;
-                margin: 1.5rem auto;
-            }
-
-            /* Larger touch target for dismiss button */
-            #hide-btn {
-                width: 44px;
-                height: 44px;
-                font-size: 18px;
-                top: 5px;
-                right: 5px;
+            #debug-controls {
+                flex-direction: column;
+                padding-bottom: 80px; /* Space for toggle button */
+                gap: 15px;
             }
         }
     </style>
@@ -245,6 +291,23 @@
     </div>
 </div>
 
+<button id="settings-toggle" onclick="toggleDebugPanel()" aria-label="Toggle Simulation">⚙️</button>
+
+<div id="debug-controls">
+    <div id="debug-header">Simulation Controls</div>
+    <label>
+        <input type="checkbox" id="sim-active" onchange="toggleSim()"> Enable Sim
+    </label>
+    <label>
+        Hour (0-23): <input type="number" id="sim-hour" value="23" min="0" max="23" style="width: 50px; background: #333; color: white; border: 1px solid #555; padding: 4px; border-radius: 4px;">
+    </label>
+    <label>
+        Minute (0-59): 
+        <input type="range" id="sim-min" value="58" min="0" max="59" oninput="updateSimDisplay()">
+        <span id="sim-min-val" style="width: 2ch; display: inline-block;">58</span>
+    </label>
+</div>
+
 <script>
     const targets = [
         { mark: 0, text: "Read Station ID" },
@@ -255,23 +318,52 @@
 
     let currentActiveTargetMark = null;
     let isManuallyDismissed = false;
+    let simActive = false;
 
     function dismissTask() {
         document.getElementById('monitor-body').classList.add('manual-hide');
         isManuallyDismissed = true;
     }
 
-    // Centrally managed 12-hour time formatter
+    function toggleDebugPanel() {
+        document.getElementById('debug-controls').classList.toggle('visible');
+    }
+
+    function toggleSim() {
+        simActive = document.getElementById('sim-active').checked;
+        isManuallyDismissed = false; 
+    }
+
+    function updateSimDisplay() {
+        document.getElementById('sim-min-val').textContent = document.getElementById('sim-min').value;
+    }
+
     function formatTime(date) {
         let h = date.getHours();
         let m = String(date.getMinutes()).padStart(2, '0');
         let period = h >= 12 ? 'pm' : 'am';
-        let h12 = h % 12 || 12; // 0 becomes 12 (Midnight), 12 remains 12 (Noon)
+        let h12 = h % 12 || 12; 
         return `${String(h12).padStart(2, '0')}:${m} ${period}`;
     }
 
+    function getTaskText(target, date) {
+        if (target.mark === 0 && date.getHours() === 0) {
+            return "Read Statement of Ownership";
+        }
+        return target.text;
+    }
+
     function update() {
-        const now = new Date();
+        // --- TIME SIMULATION ---
+        let now = new Date();
+        if (simActive) {
+            const h = parseInt(document.getElementById('sim-hour').value) || 0;
+            const m = parseInt(document.getElementById('sim-min').value) || 0;
+            now.setHours(h);
+            now.setMinutes(m);
+            now.setSeconds(30); 
+        }
+
         const m = now.getMinutes();
         const s = now.getSeconds();
 
@@ -290,8 +382,6 @@
             if (t.mark === 0 && m >= 54) d = m - 60;
             if (t.mark === 0 && m <= 6) d = m;
             
-            // FIX: Change logic from "Math.abs(d) <= 6" to strict bounds
-            // This allows -6 (54m) up to 5 (05m), but cuts off exactly at 6 (06m)
             if (d >= -6 && d < 6) { 
                 active = t; 
                 diff = d; 
@@ -314,8 +404,7 @@
             currentActiveTargetMark = null;
         }
 
-        // 4. Timeline Calculation (Safe for Noon/Midnight)
-        // Previous Event
+        // 4. Timeline Calculation
         let lastIdx = targets.findIndex(t => t.mark > m) - 1;
         if (lastIdx === -2) lastIdx = targets.length - 1; 
         
@@ -326,7 +415,6 @@
             prevDate.setHours(now.getHours() - 1);
         }
 
-        // Next Event
         let nextIdx = targets.findIndex(t => t.mark > m);
         if (nextIdx === -1) nextIdx = 0;
         
@@ -337,25 +425,30 @@
             nextDate.setHours(now.getHours() + 1);
         }
 
-        document.getElementById('last-event').textContent = `${targets[lastIdx].text} (${formatTime(prevDate)})`;
-        document.getElementById('next-event').textContent = `${targets[nextIdx].text} (${formatTime(nextDate)})`;
+        // Apply Midnight Logic to Timeline Items
+        let prevText = getTaskText(targets[lastIdx], prevDate);
+        let nextText = getTaskText(targets[nextIdx], nextDate);
+
+        document.getElementById('last-event').textContent = `${prevText} (${formatTime(prevDate)})`;
+        document.getElementById('next-event').textContent = `${nextText} (${formatTime(nextDate)})`;
 
         // 5. Render Action Card
         if (active && !isManuallyDismissed) {
             body.classList.add('alert-active');
-            document.getElementById('message').textContent = active.text;
+            
+            let targetDate = new Date(now.getTime());
+            targetDate.setMinutes(active.mark);
+            targetDate.setSeconds(0);
+            if (active.mark === 0 && m >= 54) {
+                targetDate.setHours(now.getHours() + 1);
+            }
+            // Use same helper for Active Alert Text
+            document.getElementById('message').textContent = getTaskText(active, targetDate);
 
             if (diff < 0) {
                 const secsLeft = (Math.abs(diff) * 60) - s;
                 body.classList.remove('red-phase');
                 body.classList.add(secsLeft < 60 ? 'yellow-phase' : 'green-phase');
-                
-                let targetDate = new Date(now.getTime());
-                targetDate.setMinutes(active.mark);
-                targetDate.setSeconds(0);
-                if (active.mark === 0 && m >= 54) {
-                    targetDate.setHours(now.getHours() + 1);
-                }
                 
                 document.getElementById('status-text').textContent = `Target: ${formatTime(targetDate)}`;
                 document.getElementById('countdown').textContent = `${Math.floor(secsLeft/60)}:${String(secsLeft%60).padStart(2,'0')} until start`;
@@ -374,7 +467,7 @@
         }
     }
 
-    setInterval(update, 1000);
+    setInterval(update, 100); 
     update();
 </script>
 </body>
